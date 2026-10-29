@@ -6,7 +6,18 @@ plugins {
 android {
     namespace = "com.example.emotagnfc"
     compileSdk = 35
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
 
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(
+                org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+            )
+        }
+    }
     defaultConfig {
         applicationId = "com.example.emotagnfc"
         minSdk = 26
