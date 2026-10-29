@@ -1,13 +1,19 @@
+
 package com.example.emotagnfc
 
 import android.app.Activity
-import android.content.Context
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.nfc.tech.Ndef
+import android.nfc.tech.IsoDep
+import android.nfc.tech.NfcA
+import android.nfc.tech.NfcB
+import android.nfc.tech.NfcF
+import android.nfc.tech.NfcV
 import android.os.Bundle
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.view.ViewGroup
 
@@ -23,53 +29,84 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(36, 48, 36, 36)
         }
-        val title = TextView(this).apply {
-            text = "Emotag NFC-Test"
-            textSize = 26f
-        }
+
+        layout.addView(TextView(this).apply {
+            text = "Emotag Geräteanalyse"
+            textSize = 25f
+        })
+
         status = TextView(this).apply {
-            textSize = 17f
-            text = initialStatus()
+            textSize = 16f
             setPadding(0, 24, 0, 24)
+            text = initialStatus()
         }
-        val refresh = Button(this).apply {
-            text = "NFC-Status prüfen"
-            setOnClickListener { status.text = initialStatus() }
-        }
-        layout.addView(title)
+
         layout.addView(status, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        layout.addView(refresh)
-        setContentView(layout)
-        handleIntentTag(intent?.getParcelableExtra(NfcAdapter.EXTRA_TAG))
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ))
+
+        layout.addView(Button(this).apply {
+            text = "NFC-Status aktualisieren"
+            setOnClickListener { status.text = initialStatus() }
+        })
+
+        val scroll = ScrollView(this)
+        scroll.addView(layout)
+        setContentView(scroll)
+
+        @Suppress("DEPRECATION")
+        handleTag(intent?.getParcelableExtra(NfcAdapter.EXTRA_TAG))
     }
 
     private fun initialStatus(): String = when {
-        adapter == null -> "Dieses Gerät meldet keinen NFC-Adapter."
-        adapter?.isEnabled != true -> "NFC ist ausgeschaltet. Aktiviere NFC in den Android-Einstellungen."
-        else -> "NFC ist verfügbar. Halte einen NFC-Tag an die Rückseite des Handys. Diese Test-App schreibt keine Daten."
+        adapter == null -> "Kein NFC-Adapter gefunden."
+        adapter?.isEnabled != true ->
+            "NFC ist ausgeschaltet. Bitte in den Android-Einstellungen aktivieren."
+        else ->
+            "NFC ist bereit.\n\nHalte den Emotag ans Handy. " +
+            "Die App liest nur technische Informationen und schreibt keine Daten."
     }
 
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
-        handleIntentTag(intent.getParcelableExtra(NfcAdapter.EXTRA_TAG))
+        setIntent(intent)
+        @Suppress("DEPRECATION")
+        handleTag(intent.getParcelableExtra(NfcAdapter.EXTRA_TAG))
     }
 
-    private fun handleIntentTag(tag: Tag?) {
+    private fun handleTag(tag: Tag?) {
         if (tag == null) return
-        status.text = try {
-            val ndef = Ndef.get(tag)
-            if (ndef == null) {
-                "Tag erkannt, aber kein NDEF-Datensatz verfügbar. Keine Daten geschrieben."
-            } else {
-                ndef.connect()
-                val message = ndef.ndefMessage
-                ndef.close()
-                val records = message?.records?.size ?: 0
-                "NFC-Tag erkannt. NDEF-Datensätze: $records. Keine Daten geschrieben."
-            }
-        } catch (e: Exception) {
-            "Tag erkannt, Lesen fehlgeschlagen: ${e.message ?: "unbekannter Fehler"}"
+
+        val technologies = tag.techList
+        val id = tag.id.joinToString("") { "%02X".format(it) }
+
+        val details = StringBuilder()
+        details.append("EMOTAG ERKANNT\n\n")
+        details.append("Tag-ID: $id\n\n")
+        details.append("NFC-Technologien:\n")
+        technologies.forEach { details.append("• $it\n") }
+
+        details.append("\nZusatzinformationen:\n")
+        details.append("NfcA: ${NfcA.get(tag) != null}\n")
+        details.append("NfcB: ${NfcB.get(tag) != null}\n")
+        details.append("NfcF: ${NfcF.get(tag) != null}\n")
+        details.append("NfcV: ${NfcV.get(tag) != null}\n")
+        details.append("IsoDep: ${IsoDep.get(tag) != null}\n")
+
+        val ndef = Ndef.get(tag)
+        details.append("NDEF: ${ndef != null}\n")
+
+        if (ndef != null) {
+            details.append("NDEF schreibgeschützt: ${ndef.isWritable.not()}\n")
+            details.append("NDEF-Kapazität: ${ndef.maxSize} Bytes\n")
         }
+
+        details.append(
+            "\nHinweis: Diese Angaben identifizieren die NFC-Schnittstelle, " +
+            "aber noch nicht das Bildübertragungsprotokoll."
+        )
+
+        status.text = details.toString()
     }
 }
